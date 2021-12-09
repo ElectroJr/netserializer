@@ -9,3 +9,5 @@ packages
 .idea/
 *.sln.iml
 
+# VS
+.vs/
