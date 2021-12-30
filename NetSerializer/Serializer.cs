@@ -251,10 +251,7 @@ namespace NetSerializer
 			var sha256 = System.Security.Cryptography.SHA256.Create();
 			var bytes = sha256.ComputeHash(stream);
 
-			var sb = new System.Text.StringBuilder();
-			foreach (byte b in bytes)
-				sb.Append(b.ToString("x2"));
-			return sb.ToString();
+			return Convert.ToHexString(bytes);
 		}
 
 		readonly TypeDictionary m_runtimeTypeMap;
