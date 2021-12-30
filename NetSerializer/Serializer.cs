@@ -232,8 +232,9 @@ namespace NetSerializer
 		/// </summary>
 		public string GetSHA256()
 		{
-			using (var stream = new MemoryStream())
-			using (var writer = new StreamWriter(stream))
+			var stream = new MemoryStream();
+
+			using (var writer = new StreamWriter(stream, leaveOpen: true))
 			{
 				lock (m_modifyLock)
 				{
@@ -243,17 +244,17 @@ namespace NetSerializer
 						writer.Write(item.Value.FullName);
 					}
 				}
-
-				stream.Position = 0;
-
-				var sha256 = System.Security.Cryptography.SHA256.Create();
-				var bytes = sha256.ComputeHash(stream);
-
-				var sb = new System.Text.StringBuilder();
-				foreach (byte b in bytes)
-					sb.Append(b.ToString("x2"));
-				return sb.ToString();
 			}
+
+			stream.Position = 0;
+
+			var sha256 = System.Security.Cryptography.SHA256.Create();
+			var bytes = sha256.ComputeHash(stream);
+
+			var sb = new System.Text.StringBuilder();
+			foreach (byte b in bytes)
+				sb.Append(b.ToString("x2"));
+			return sb.ToString();
 		}
 
 		readonly TypeDictionary m_runtimeTypeMap;
