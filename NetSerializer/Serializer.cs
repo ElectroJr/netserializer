@@ -244,6 +244,8 @@ namespace NetSerializer
 					}
 				}
 
+				stream.Position = 0;
+
 				var sha256 = System.Security.Cryptography.SHA256.Create();
 				var bytes = sha256.ComputeHash(stream);
 
