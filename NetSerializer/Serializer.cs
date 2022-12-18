@@ -265,6 +265,10 @@ namespace NetSerializer
 
 		internal readonly Settings Settings = new Settings();
 
+		private readonly Dictionary<object, int> _contextMap = new();
+		private object[] _contexts = new object[4];
+		private int _nextContext;
+
 		[Conditional("DEBUG")]
 		void AssertLocked()
 		{
@@ -320,6 +324,28 @@ namespace NetSerializer
 			}
 
 			del(this, stream, out value);
+		}
+
+		public int RegisterContext(object context)
+		{
+			AssertLocked();
+
+			if (_contextMap.TryGetValue(context, out var idx))
+				return idx;
+
+			idx = _nextContext++;
+			if (idx >= _contexts.Length)
+				Array.Resize(ref _contexts, _contexts.Length * 2);
+
+			_contexts[idx] = context;
+			_contextMap.Add(context, idx);
+
+			return idx;
+		}
+
+		public object GetContext(int idx)
+		{
+			return _contexts[idx];
 		}
 
 		internal uint GetTypeIdAndSerializer(Type type, out SerializeDelegate<object> del)
