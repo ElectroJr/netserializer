@@ -8,15 +8,27 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 
 namespace NetSerializer
 {
 	sealed class ArraySerializer : IDynamicTypeSerializer
 	{
+		// Upper limit on arrays/lists. Prevents malformed packets from causing the server to allocate giant arrays.
+		// Currently 2^18, although this is quite arbitrary. If eoy need to send larger collections, use a dedicated
+		// serializer.
+		//
+		// TODO make this configurable?
+		// Maybe make it a settable static field?
+		public const int MaxSize = 262_144;
+		public class SerializeSizeException : Exception
+		{
+			public SerializeSizeException(int i) : base(
+				$"Serializable type exceeded maximum size. Size: {i}. Maximum: {MaxSize}")
+			{
+			}
+		}
+
 		public bool Handles(Type type)
 		{
 			if (!type.IsArray)
@@ -50,6 +62,24 @@ namespace NetSerializer
 			il.Emit(OpCodes.Ret);
 
 			il.MarkLabel(notNullLabel);
+
+			// Check if the array exceeds the maximum length.
+			var belowMaxSize = il.DefineLabel();
+			il.Emit(OpCodes.Ldarg_2);
+			il.Emit(OpCodes.Ldlen);
+			il.Emit(OpCodes.Conv_I4);
+			il.Emit(OpCodes.Ldc_I4, MaxSize);
+			il.Emit(OpCodes.Ble_S, belowMaxSize);
+
+			// Array is too large - throw an exception.
+			il.Emit(OpCodes.Ldarg_2);
+			il.Emit(OpCodes.Ldlen);
+			il.Emit(OpCodes.Conv_I4);
+			il.Emit(OpCodes.Newobj, typeof(SerializeSizeException).GetConstructor(new []{typeof(int)}));
+			il.Emit(OpCodes.Throw);
+
+			// All checks passed.
+			il.MarkLabel(belowMaxSize);
 
 			// write array len + 1
 			il.Emit(OpCodes.Ldarg_1);
@@ -122,6 +152,7 @@ namespace NetSerializer
 			il.Emit(OpCodes.Ldloc_S, lenLocal);
 			il.Emit(OpCodes.Brtrue_S, notNullLabel);
 
+			// Return null
 			il.Emit(OpCodes.Ldarg_2);
 			il.Emit(OpCodes.Ldnull);
 			il.Emit(OpCodes.Stind_Ref);
@@ -129,6 +160,19 @@ namespace NetSerializer
 
 			il.MarkLabel(notNullLabel);
 
+			// Check if the array exceeds the maximum length.
+			var belowMaxSize = il.DefineLabel();
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Ldc_I4, MaxSize);
+			il.Emit(OpCodes.Blt_Un_S, belowMaxSize); // < instead of <= because "1" represents a length 0 array
+
+			// Array is too large - throw an exception.
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Newobj, typeof(SerializeSizeException).GetConstructor(new []{typeof(int)}));
+			il.Emit(OpCodes.Throw);
+
+			// All checks passed.
+			il.MarkLabel(belowMaxSize);
 			var arrLocal = il.DeclareLocal(type);
 
 			// create new array with len - 1

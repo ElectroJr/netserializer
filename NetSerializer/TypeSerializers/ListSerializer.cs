@@ -43,6 +43,24 @@ namespace NetSerializer.TypeSerializers
 
 			il.MarkLabel(notNullLabel);
 
+			// Check if the array exceeds the maximum length.
+			var belowMaxSize = il.DefineLabel();
+			il.Emit(OpCodes.Ldarg_2);
+			il.Emit(OpCodes.Callvirt, ListCountGetter(type));
+			il.Emit(OpCodes.Conv_I4);
+			il.Emit(OpCodes.Ldc_I4, ArraySerializer.MaxSize);
+			il.Emit(OpCodes.Ble_S, belowMaxSize);
+
+			// Array is too large - throw an exception.
+			il.Emit(OpCodes.Ldarg_2);
+			il.Emit(OpCodes.Callvirt, ListCountGetter(type));
+			il.Emit(OpCodes.Conv_I4);
+			il.Emit(OpCodes.Newobj, typeof(ArraySerializer.SerializeSizeException).GetConstructor(new []{typeof(int)}));
+			il.Emit(OpCodes.Throw);
+
+			// All checks passed.
+			il.MarkLabel(belowMaxSize);
+
 			// write array len + 1
 			il.Emit(OpCodes.Ldarg_1);
 			il.Emit(OpCodes.Ldarg_2);
@@ -123,6 +141,19 @@ namespace NetSerializer.TypeSerializers
 
 			il.MarkLabel(notNullLabel);
 
+			// Check if the array exceeds the maximum length.
+			var belowMaxSize = il.DefineLabel();
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Ldc_I4, ArraySerializer.MaxSize);
+			il.Emit(OpCodes.Blt_Un_S, belowMaxSize);  // < instead of <= because "1" represents a length 0 array
+
+			// Array is too large - throw an exception.
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Newobj, typeof(ArraySerializer.SerializeSizeException).GetConstructor(new []{typeof(int)}));
+			il.Emit(OpCodes.Throw);
+
+			// All checks passed.
+			il.MarkLabel(belowMaxSize);
 			var listLocal = il.DeclareLocal(type);
 
 			// -- length
