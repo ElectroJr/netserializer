@@ -12,7 +12,7 @@ public class SerializationSizeException : Exception
 {
 	public const int MaxSize = 262_144;
 	public SerializationSizeException(int i) : base(
-		$"Serializable type exceeded maximum size/length.. Size: {i}. Maximum: {MaxSize}")
+		$"Serializable type exceeded maximum size/length. Size: {i}. Maximum: {MaxSize}")
 	{
 	}
 }
