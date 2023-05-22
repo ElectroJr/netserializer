@@ -145,25 +145,28 @@ namespace NetSerializer
 
 			il.MarkLabel(notNullLabel);
 
+			// -- length
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Ldc_I4_1);
+			il.Emit(OpCodes.Sub);
+			il.Emit(OpCodes.Stloc, lenLocal);
+
 			// Check if the array exceeds the maximum length.
 			var belowMaxSize = il.DefineLabel();
 			il.Emit(OpCodes.Ldloc_S, lenLocal);
 			il.Emit(OpCodes.Ldc_I4, SerializationSizeException.MaxSize);
-			il.Emit(OpCodes.Blt_Un_S, belowMaxSize); // < instead of <= because "1" represents a length 0 array
+			il.Emit(OpCodes.Ble_Un_S, belowMaxSize);
 
 			// Array is too large - throw an exception.
 			il.Emit(OpCodes.Ldloc_S, lenLocal);
 			il.Emit(OpCodes.Newobj, typeof(SerializationSizeException).GetConstructor(new []{typeof(int)}));
 			il.Emit(OpCodes.Throw);
 
-			// All checks passed.
 			il.MarkLabel(belowMaxSize);
 			var arrLocal = il.DeclareLocal(type);
 
-			// create new array with len - 1
+			// create new array
 			il.Emit(OpCodes.Ldloc_S, lenLocal);
-			il.Emit(OpCodes.Ldc_I4_1);
-			il.Emit(OpCodes.Sub);
 			il.Emit(OpCodes.Newarr, elemType);
 			il.Emit(OpCodes.Stloc_S, arrLocal);
 
