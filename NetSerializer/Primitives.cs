@@ -506,6 +506,9 @@ namespace NetSerializer
 			var totalChars = value.Length;
 			var totalBytes = Encoding.UTF8.GetByteCount(value);
 
+			if (totalBytes > SerializationSizeException.MaxSize)
+				throw new SerializationSizeException(totalBytes);
+
 			WritePrimitive(stream, (uint)totalBytes + 1);
 			WritePrimitive(stream, (uint)totalChars);
 
@@ -545,6 +548,9 @@ namespace NetSerializer
 			}
 
 			totalBytes -= 1;
+
+			if (totalBytes > SerializationSizeException.MaxSize)
+				throw new SerializationSizeException((int)totalBytes);
 
 			ReadPrimitive(stream, out uint totalChars);
 
@@ -816,6 +822,9 @@ namespace NetSerializer
 				return;
 			}
 
+			if (value.Length > SerializationSizeException.MaxSize)
+				throw new SerializationSizeException(value.Length);
+
 			WritePrimitive(stream, (uint)value.Length + 1);
 
 			stream.Write(value, 0, value.Length);
@@ -840,6 +849,9 @@ namespace NetSerializer
 			}
 
 			len -= 1;
+
+			if (len > SerializationSizeException.MaxSize)
+				throw new SerializationSizeException((int)len);
 
 			value = new byte[len];
 			int l = 0;
