@@ -93,7 +93,7 @@ namespace NetSerializer
 
 		public void GenerateWriterMethod(Serializer serializer, Type type, ILGenerator il)
 		{
-			// arg0: Serializer, arg1: Stream, arg2: value
+			// arg0: Serializer, arg1: Stream, arg2: value, arg3: SerializationContext
 
 			if (serializer.Settings.SupportSerializationCallbacks)
 			{
@@ -121,6 +121,9 @@ namespace NetSerializer
 					il.Emit(OpCodes.Ldarg_2);
 				il.Emit(OpCodes.Ldfld, field);
 
+				if (data.WriterNeedsContext)
+					il.Emit(OpCodes.Ldarg_3);
+
 				il.Emit(OpCodes.Call, data.WriterMethodInfo);
 			}
 
@@ -135,7 +138,7 @@ namespace NetSerializer
 
 		public void GenerateReaderMethod(Serializer serializer, Type type, ILGenerator il)
 		{
-			// arg0: Serializer, arg1: stream, arg2: out value
+			// arg0: Serializer, arg1: stream, arg2: out value, arg3: SerializationContext
 
 			if (type.IsClass)
 			{
@@ -174,6 +177,9 @@ namespace NetSerializer
 				if (type.IsClass)
 					il.Emit(OpCodes.Ldind_Ref);
 				il.Emit(OpCodes.Ldflda, field);
+
+				if (data.ReaderNeedsContext)
+					il.Emit(OpCodes.Ldarg_3);
 
 				il.Emit(OpCodes.Call, data.ReaderMethodInfo);
 			}

@@ -24,19 +24,24 @@ namespace NetSerializer
 	{
 		private const int StringByteBufferLength = 256;
 		private const int StringCharBufferLength = 128;
+		private const BindingFlags Flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.ExactBinding;
 
 		public static MethodInfo GetWritePrimitive(Type type)
 		{
-			return typeof(Primitives).GetMethod("WritePrimitive",
-				BindingFlags.Static | BindingFlags.Public | BindingFlags.ExactBinding, null,
-				new Type[] { typeof(Stream), type }, null);
+			var method = typeof(Primitives).GetMethod("WritePrimitive", Flags ,
+				new []{ typeof(Stream), type });
+
+			return method ?? typeof(Primitives).GetMethod("WritePrimitive", Flags ,
+				new []{ typeof(Stream), type , typeof(SerializationContext)});
 		}
 
 		public static MethodInfo GetReaderPrimitive(Type type)
 		{
-			return typeof(Primitives).GetMethod("ReadPrimitive",
-				BindingFlags.Static | BindingFlags.Public | BindingFlags.ExactBinding, null,
-				new Type[] { typeof(Stream), type.MakeByRefType() }, null);
+			var method = typeof(Primitives).GetMethod("ReadPrimitive", Flags ,
+				new []{ typeof(Stream), type.MakeByRefType() });
+
+			return method ?? typeof(Primitives).GetMethod("ReadPrimitive", Flags ,
+				new []{ typeof(Stream), type.MakeByRefType() , typeof(SerializationContext)});
 		}
 
 		static uint EncodeZigZag32(int n)
@@ -487,7 +492,7 @@ namespace NetSerializer
 		}
 
 #if NETCOREAPP
-		public static void WritePrimitive(Stream stream, string value)
+		public static void WritePrimitive(Stream stream, string value, SerializationContext ctx)
 		{
 			if (value == null)
 			{
@@ -505,6 +510,9 @@ namespace NetSerializer
 
 			var totalChars = value.Length;
 			var totalBytes = Encoding.UTF8.GetByteCount(value);
+
+			if (totalChars > ctx.StringSerializationLimit)
+				throw new SerializationSizeException(totalChars, ctx.StringSerializationLimit, nameof(String));
 
 			WritePrimitive(stream, (uint)totalBytes + 1);
 			WritePrimitive(stream, (uint)totalChars);
@@ -528,7 +536,7 @@ namespace NetSerializer
 		// We cache the delegate in a static here to avoid a delegate allocation on every call to ReadPrimitive.
 		private static readonly SpanAction<char, (int, Stream)> _stringSpanRead = StringSpanRead;
 
-		public static void ReadPrimitive(Stream stream, out string value)
+		public static void ReadPrimitive(Stream stream, out string value, SerializationContext ctx)
 		{
 			ReadPrimitive(stream, out uint totalBytes);
 
@@ -547,6 +555,11 @@ namespace NetSerializer
 			totalBytes -= 1;
 
 			ReadPrimitive(stream, out uint totalChars);
+
+			// We limit string length, but not byte length, as that is effectively protected from malicious/malformed
+			// packets by only reading StringByteBufferLength bytes at a time.
+			if (totalChars > ctx.StringDeserializationLimit)
+				throw new SerializationSizeException((int)totalChars, ctx.StringDeserializationLimit, nameof(String));
 
 			value = string.Create((int) totalChars, ((int) totalBytes, stream), _stringSpanRead);
 		}
@@ -808,13 +821,16 @@ namespace NetSerializer
 		}
 #endif
 
-		public static void WritePrimitive(Stream stream, byte[] value)
+		public static void WritePrimitive(Stream stream, byte[] value, SerializationContext ctx)
 		{
 			if (value == null)
 			{
 				WritePrimitive(stream, (uint)0);
 				return;
 			}
+
+			if (value.Length > ctx.ByteSerializationLimit)
+				throw new SerializationSizeException(value.Length, ctx.ByteSerializationLimit, typeof(byte[]).Name);
 
 			WritePrimitive(stream, (uint)value.Length + 1);
 
@@ -823,7 +839,7 @@ namespace NetSerializer
 
 		static readonly byte[] s_emptyByteArray = new byte[0];
 
-		public static void ReadPrimitive(Stream stream, out byte[] value)
+		public static void ReadPrimitive(Stream stream, out byte[] value, SerializationContext ctx)
 		{
 			uint len;
 			ReadPrimitive(stream, out len);
@@ -840,6 +856,9 @@ namespace NetSerializer
 			}
 
 			len -= 1;
+
+			if (len > ctx.ByteDeserializationLimit)
+				throw new SerializationSizeException((int)len, ctx.ByteDeserializationLimit, typeof(byte[]).Name);
 
 			value = new byte[len];
 			int l = 0;

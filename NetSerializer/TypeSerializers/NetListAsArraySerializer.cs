@@ -28,7 +28,7 @@ namespace NetSerializer.TypeSerializers
 
 		public void GenerateWriterMethod(Serializer serializer, Type type, ILGenerator il)
 		{
-			// arg0: Serializer, arg1: Stream, arg2: value
+			// arg0: Serializer, arg1: Stream, arg2: value, arg3: SerializationContext
 
 			var elementType = GetElementType(type);
 
@@ -67,6 +67,7 @@ namespace NetSerializer.TypeSerializers
 			il.Emit(OpCodes.Ldarg_0);
 			il.Emit(OpCodes.Ldarg_1);
 			il.Emit(OpCodes.Ldloc, listLocal);
+			il.Emit(OpCodes.Ldarg_3);
 			il.Emit(OpCodes.Call, serializer.GetDirectWriter(listType));
 			il.Emit(OpCodes.Ret);
 			il.MarkLabel(notListLabel);
@@ -77,6 +78,7 @@ namespace NetSerializer.TypeSerializers
 			il.Emit(OpCodes.Ldarg_1);
 			il.Emit(OpCodes.Ldloc, collectionLocal);
 			il.Emit(OpCodes.Castclass, arrayType);
+			il.Emit(OpCodes.Ldarg_3);
 			il.Emit(OpCodes.Call, serializer.GetDirectWriter(arrayType));
 			il.Emit(OpCodes.Ret);
 		}
@@ -95,6 +97,7 @@ namespace NetSerializer.TypeSerializers
 			il.Emit(OpCodes.Ldarg_0);
 			il.Emit(OpCodes.Ldarg_1);
 			il.Emit(OpCodes.Ldloca, arrayLocal);
+			il.Emit(OpCodes.Ldarg_3);
 			il.Emit(OpCodes.Call, serializer.GetDirectReader(arrayType));
 			il.Emit(OpCodes.Ldloc, arrayLocal);
 			il.Emit(OpCodes.Newobj, type.GetConstructor(new []{arrayType})!);

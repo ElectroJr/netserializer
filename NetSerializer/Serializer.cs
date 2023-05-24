@@ -17,8 +17,8 @@ using NetSerializer.TypeSerializers;
 
 namespace NetSerializer
 {
-	delegate void SerializeDelegate<T>(Serializer serializer, Stream stream, T ob);
-	delegate void DeserializeDelegate<T>(Serializer serializer, Stream stream, out T ob);
+	delegate void SerializeDelegate<T>(Serializer serializer, Stream stream, T ob, SerializationContext ctx);
+	delegate void DeserializeDelegate<T>(Serializer serializer, Stream stream, out T ob, SerializationContext ctx);
 
 	public class Serializer
 	{
@@ -275,28 +275,28 @@ namespace NetSerializer
 			Debug.Assert(System.Threading.Monitor.IsEntered(m_modifyLock));
 		}
 
-		public void Serialize(Stream stream, object ob)
+		public void Serialize(Stream stream, object ob, SerializationContext? ctx = null)
 		{
-			ObjectSerializer.Serialize(this, stream, ob);
+			ObjectSerializer.Serialize(this, stream, ob, ctx ?? SerializationContext.Default);
 		}
 
-		public object Deserialize(Stream stream)
+		public object Deserialize(Stream stream, SerializationContext? ctx = null)
 		{
 			object ob;
-			ObjectSerializer.Deserialize(this, stream, out ob);
+			ObjectSerializer.Deserialize(this, stream, out ob, ctx ?? SerializationContext.Default);
 			return ob;
 		}
 
-		public void Deserialize(Stream stream, out object ob)
+		public void Deserialize(Stream stream, out object ob, SerializationContext? ctx = null)
 		{
-			ObjectSerializer.Deserialize(this, stream, out ob);
+			ObjectSerializer.Deserialize(this, stream, out ob, ctx ?? SerializationContext.Default);
 		}
 
 		/// <summary>
 		/// Serialize object graph without writing the type-id of the root type. This can be useful e.g. when
 		/// serializing a known value type, as this will avoid boxing.
 		/// </summary>
-		public void SerializeDirect<T>(Stream stream, T value)
+		public void SerializeDirect<T>(Stream stream, T value, SerializationContext? ctx = null)
 		{
 			var del = (SerializeDelegate<T>)m_runtimeTypeMap[typeof(T)].WriterDirectDelegate;
 
@@ -306,14 +306,14 @@ namespace NetSerializer
 					del = (SerializeDelegate<T>)GenerateDirectWriterDelegate(typeof(T));
 			}
 
-			del(this, stream, value);
+			del(this, stream, value, ctx ?? SerializationContext.Default);
 		}
 
 		/// <summary>
 		/// Deserialize object graph serialized with SerializeDirect(). Type T must match the type used when
 		/// serializing.
 		/// </summary>
-		public void DeserializeDirect<T>(Stream stream, out T value)
+		public void DeserializeDirect<T>(Stream stream, out T value, SerializationContext? ctx = null)
 		{
 			var del = (DeserializeDelegate<T>)m_runtimeTypeMap[typeof(T)].ReaderDirectDelegate;
 
@@ -323,7 +323,7 @@ namespace NetSerializer
 					del = (DeserializeDelegate<T>)GenerateDirectReaderDelegate(typeof(T));
 			}
 
-			del(this, stream, out value);
+			del(this, stream, out value, ctx ?? SerializationContext.Default);
 		}
 
 		public int RegisterContext(object context)
@@ -411,7 +411,6 @@ namespace NetSerializer
 			return m_runtimeTypeMap[type].ReaderMethodInfo;
 		}
 
-
 		HashSet<Type> Collect(Type rootType)
 		{
 			var l = new HashSet<Type>();
@@ -463,7 +462,7 @@ namespace NetSerializer
 			}
 			else if (serializer is IDynamicTypeSerializer)
 			{
-				// TODO: make it possible for dyn serializers to not have Serializer param
+				// TODO: make it possible for dyn serializers to not have Serializer & context params
 				writer = Helpers.GenerateDynamicSerializerStub(type);
 			}
 			else
@@ -559,7 +558,7 @@ namespace NetSerializer
 			}
 			else if (serializer is IDynamicTypeSerializer)
 			{
-				// TODO: make it possible for dyn serializers to not have Serializer param
+				// TODO: make it possible for dyn serializers to not have Serializer & context params
 				reader = Helpers.GenerateDynamicDeserializerStub(type);
 			}
 			else

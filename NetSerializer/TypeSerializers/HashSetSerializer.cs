@@ -67,11 +67,15 @@ namespace NetSerializer.TypeSerializers
             return reader;
         }
         
-        public static void WritePrimitive<T>(Serializer serializer, Stream stream, HashSet<T> value)
+        public static void WritePrimitive<T>(
+	        Serializer serializer,
+	        Stream stream,
+	        HashSet<T> value,
+	        SerializationContext ctx)
         {
             if (value == null)
             {
-                serializer.Serialize(stream, null);
+                serializer.Serialize(stream, null, ctx);
                 return;
             }
             
@@ -81,12 +85,16 @@ namespace NetSerializer.TypeSerializers
             foreach (var t in value)
                 array[i++] = t;
 
-            serializer.Serialize(stream, array);
+            serializer.SerializeDirect(stream, array, ctx);
         }
 
-        public static void ReadPrimitive<T>(Serializer serializer, Stream stream, out HashSet<T> value)
+        public static void ReadPrimitive<T>(
+	        Serializer serializer,
+	        Stream stream,
+	        out HashSet<T> value,
+	        SerializationContext ctx)
         {
-            var array = (T[])serializer.Deserialize(stream);
+            serializer.DeserializeDirect(stream, out T[] array, ctx);
 
             if (array == null)
             {

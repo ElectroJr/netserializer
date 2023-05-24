@@ -36,7 +36,7 @@ namespace NetSerializer
 			return typeof(ObjectSerializer).GetMethod("Deserialize", BindingFlags.Static | BindingFlags.Public);
 		}
 
-		public static void Serialize(Serializer serializer, Stream stream, object ob)
+		public static void Serialize(Serializer serializer, Stream stream, object ob, SerializationContext ctx)
 		{
 			if (ob == null)
 			{
@@ -55,10 +55,10 @@ namespace NetSerializer
 			if (id == Serializer.ObjectTypeId)
 				return;
 
-			del(serializer, stream, ob);
+			del(serializer, stream, ob, ctx);
 		}
 
-		public static void Deserialize(Serializer serializer, Stream stream, out object ob)
+		public static void Deserialize(Serializer serializer, Stream stream, out object ob, SerializationContext ctx)
 		{
 			uint id;
 
@@ -77,7 +77,7 @@ namespace NetSerializer
 			}
 
 			var del = serializer.GetDeserializeTrampolineFromId(id);
-			del(serializer, stream, out ob);
+			del(serializer, stream, out ob, ctx);
 		}
 	}
 }

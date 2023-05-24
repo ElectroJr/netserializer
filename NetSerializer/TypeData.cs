@@ -43,9 +43,13 @@ namespace NetSerializer
 				if (this.WriterMethodInfo is MethodBuilder)
 					return this.WriterNeedsInstanceDebug;
 #endif
-				return this.WriterMethodInfo.GetParameters().Length == 3;
+				return WriterMethodInfo.GetParameters()[0].ParameterType == typeof(Serializer);
 			}
 		}
+
+		// TODO support GENERATE_DEBUGGING_ASSEMBLY?
+		public bool WriterNeedsContext
+			=> WriterMethodInfo.GetParameters()[^1].ParameterType == typeof(SerializationContext);
 
 		public bool ReaderNeedsInstance
 		{
@@ -55,9 +59,13 @@ namespace NetSerializer
 				if (this.ReaderMethodInfo is MethodBuilder)
 					return this.ReaderNeedsInstanceDebug;
 #endif
-				return this.ReaderMethodInfo.GetParameters().Length == 3;
+				return ReaderMethodInfo.GetParameters()[0].ParameterType == typeof(Serializer);
 			}
 		}
+
+		// TODO support GENERATE_DEBUGGING_ASSEMBLY?
+		public bool ReaderNeedsContext
+			=> ReaderMethodInfo.GetParameters()[^1].ParameterType == typeof(SerializationContext);
 
 #if GENERATE_DEBUGGING_ASSEMBLY
 		// MethodBuilder doesn't support GetParameters(), so we need to track this separately

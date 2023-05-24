@@ -8,10 +8,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 
 namespace NetSerializer
 {
@@ -35,6 +33,8 @@ namespace NetSerializer
 
 		public void GenerateWriterMethod(Serializer serializer, Type type, ILGenerator il)
 		{
+			// arg0: Serializer, arg1: Stream, arg2: value, arg3: SerializationContext
+
 			var elemType = type.GetElementType();
 
 			var notNullLabel = il.DefineLabel();
@@ -50,6 +50,28 @@ namespace NetSerializer
 			il.Emit(OpCodes.Ret);
 
 			il.MarkLabel(notNullLabel);
+
+			// Check if the array exceeds the maximum length.
+			var belowMaxSize = il.DefineLabel();
+			il.Emit(OpCodes.Ldarg_2);
+			il.Emit(OpCodes.Ldlen);
+			il.Emit(OpCodes.Conv_I4);
+			il.Emit(OpCodes.Ldarg_3);
+			il.Emit(OpCodes.Ldfld, typeof(SerializationContext).GetField(nameof(SerializationContext.CollectionSerializationLimit)));
+			il.Emit(OpCodes.Ble_S, belowMaxSize);
+
+			// Array is too large - throw an exception.
+			il.Emit(OpCodes.Ldarg_2);
+			il.Emit(OpCodes.Ldlen);
+			il.Emit(OpCodes.Conv_I4);
+			il.Emit(OpCodes.Ldarg_3);
+			il.Emit(OpCodes.Ldfld, typeof(SerializationContext).GetField(nameof(SerializationContext.CollectionSerializationLimit)));
+			il.Emit(OpCodes.Ldstr, type.ToString());
+			il.Emit(OpCodes.Newobj, typeof(SerializationSizeException).GetConstructors()[0]);
+			il.Emit(OpCodes.Throw);
+
+			// All checks passed.
+			il.MarkLabel(belowMaxSize);
 
 			// write array len + 1
 			il.Emit(OpCodes.Ldarg_1);
@@ -85,6 +107,9 @@ namespace NetSerializer
 			il.Emit(OpCodes.Ldloc_S, idxLocal);
 			il.Emit(OpCodes.Ldelem, elemType);
 
+			if (data.WriterNeedsContext)
+				il.Emit(OpCodes.Ldarg_3);
+
 			il.Emit(OpCodes.Call, data.WriterMethodInfo);
 
 			// i = i + 1
@@ -107,6 +132,8 @@ namespace NetSerializer
 
 		public void GenerateReaderMethod(Serializer serializer, Type type, ILGenerator il)
 		{
+			// arg0: Serializer, arg1: stream, arg2: out value, arg3: SerializationContext
+
 			var elemType = type.GetElementType();
 
 			var lenLocal = il.DeclareLocal(typeof(uint));
@@ -122,6 +149,7 @@ namespace NetSerializer
 			il.Emit(OpCodes.Ldloc_S, lenLocal);
 			il.Emit(OpCodes.Brtrue_S, notNullLabel);
 
+			// Return null
 			il.Emit(OpCodes.Ldarg_2);
 			il.Emit(OpCodes.Ldnull);
 			il.Emit(OpCodes.Stind_Ref);
@@ -129,12 +157,32 @@ namespace NetSerializer
 
 			il.MarkLabel(notNullLabel);
 
-			var arrLocal = il.DeclareLocal(type);
-
-			// create new array with len - 1
+			// -- length
 			il.Emit(OpCodes.Ldloc_S, lenLocal);
 			il.Emit(OpCodes.Ldc_I4_1);
 			il.Emit(OpCodes.Sub);
+			il.Emit(OpCodes.Stloc, lenLocal);
+
+			// Check if the array exceeds the maximum length.
+			var belowMaxSize = il.DefineLabel();
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Ldarg_3);
+			il.Emit(OpCodes.Ldfld, typeof(SerializationContext).GetField(nameof(SerializationContext.CollectionDeserializationLimit)));
+			il.Emit(OpCodes.Ble_Un_S, belowMaxSize);
+
+			// Array is too large - throw an exception.
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
+			il.Emit(OpCodes.Ldarg_3);
+			il.Emit(OpCodes.Ldfld, typeof(SerializationContext).GetField(nameof(SerializationContext.CollectionDeserializationLimit)));
+			il.Emit(OpCodes.Ldstr, type.ToString());
+			il.Emit(OpCodes.Newobj, typeof(SerializationSizeException).GetConstructors()[0]);
+			il.Emit(OpCodes.Throw);
+
+			il.MarkLabel(belowMaxSize);
+			var arrLocal = il.DeclareLocal(type);
+
+			// create new array
+			il.Emit(OpCodes.Ldloc_S, lenLocal);
 			il.Emit(OpCodes.Newarr, elemType);
 			il.Emit(OpCodes.Stloc_S, arrLocal);
 
@@ -164,6 +212,9 @@ namespace NetSerializer
 			il.Emit(OpCodes.Ldloc_S, arrLocal);
 			il.Emit(OpCodes.Ldloc_S, idxLocal);
 			il.Emit(OpCodes.Ldelema, elemType);
+
+			if (data.ReaderNeedsContext)
+				il.Emit(OpCodes.Ldarg_3);
 
 			il.Emit(OpCodes.Call, data.ReaderMethodInfo);
 

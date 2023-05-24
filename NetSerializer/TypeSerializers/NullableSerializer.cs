@@ -60,6 +60,10 @@ namespace NetSerializer
 
 			// XXX for some reason Tailcall causes huge slowdown, at least with "decimal?"
 			//il.Emit(OpCodes.Tailcall);
+
+			if (data.WriterNeedsContext)
+				il.Emit(OpCodes.Ldarg_3);
+
 			il.Emit(OpCodes.Call, data.WriterMethodInfo);
 
 			il.MarkLabel(noValueLabel);
@@ -97,6 +101,10 @@ namespace NetSerializer
 				il.Emit(OpCodes.Ldarg_0);   // Serializer
 			il.Emit(OpCodes.Ldarg_1);       // Stream
 			il.Emit(OpCodes.Ldloca_S, valueLocal);
+
+			if (data.ReaderNeedsContext)
+				il.Emit(OpCodes.Ldarg_3);
+
 			il.Emit(OpCodes.Call, data.ReaderMethodInfo);
 
 			il.Emit(OpCodes.Ldarg_2);       // &value

@@ -13,7 +13,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 
 namespace NetSerializer
 {
@@ -41,12 +40,13 @@ namespace NetSerializer
 		public static DynamicMethod GenerateDynamicSerializerStub(Type type)
 		{
 			var dm = new DynamicMethod("Serialize", null,
-				new Type[] { typeof(Serializer), typeof(Stream), type },
+				new Type[] { typeof(Serializer), typeof(Stream), type, typeof(SerializationContext) },
 				typeof(Serializer), true);
 
 			dm.DefineParameter(1, ParameterAttributes.None, "serializer");
 			dm.DefineParameter(2, ParameterAttributes.None, "stream");
 			dm.DefineParameter(3, ParameterAttributes.None, "value");
+			dm.DefineParameter(4, ParameterAttributes.None, "context");
 
 			return dm;
 		}
@@ -54,11 +54,12 @@ namespace NetSerializer
 		public static DynamicMethod GenerateDynamicDeserializerStub(Type type)
 		{
 			var dm = new DynamicMethod("Deserialize", null,
-				new Type[] { typeof(Serializer), typeof(Stream), type.MakeByRefType() },
+				new Type[] { typeof(Serializer), typeof(Stream), type.MakeByRefType(), typeof(SerializationContext) },
 				typeof(Serializer), true);
 			dm.DefineParameter(1, ParameterAttributes.None, "serializer");
 			dm.DefineParameter(2, ParameterAttributes.None, "stream");
 			dm.DefineParameter(3, ParameterAttributes.Out, "value");
+			dm.DefineParameter(4, ParameterAttributes.None, "context");
 
 			return dm;
 		}
@@ -97,12 +98,13 @@ namespace NetSerializer
 
 			bool needTypeConv = paramType != writerType;
 			bool needsInstanceParameter = data.WriterNeedsInstance;
+			bool needsContext = data.WriterNeedsContext;
 
 			var delegateType = typeof(SerializeDelegate<>).MakeGenericType(paramType);
 
 			// Can we call the writer directly?
 
-			if (!needTypeConv && needsInstanceParameter)
+			if (!needTypeConv && needsInstanceParameter && needsContext)
 			{
 				var dynamicWriter = data.WriterMethodInfo as DynamicMethod;
 
@@ -125,6 +127,9 @@ namespace NetSerializer
 			if (needTypeConv)
 				il.Emit(writerType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, writerType);
 
+			if (needsContext)
+				il.Emit(OpCodes.Ldarg_3);
+
 			// XXX tailcall causes slowdowns with large valuetypes
 			//il.Emit(OpCodes.Tailcall);
 			il.Emit(OpCodes.Call, data.WriterMethodInfo);
@@ -146,12 +151,13 @@ namespace NetSerializer
 
 			bool needTypeConv = paramType != readerType;
 			bool needsInstanceParameter = data.ReaderNeedsInstance;
+			bool needsContext = data.ReaderNeedsContext;
 
 			var delegateType = typeof(DeserializeDelegate<>).MakeGenericType(paramType);
 
 			// Can we call the reader directly?
 
-			if (!needTypeConv && needsInstanceParameter)
+			if (!needTypeConv && needsInstanceParameter && needsContext)
 			{
 				var dynamicReader = data.ReaderMethodInfo as DynamicMethod;
 
@@ -176,6 +182,9 @@ namespace NetSerializer
 				il.Emit(OpCodes.Ldarg_1);
 				il.Emit(OpCodes.Ldloca_S, local);
 
+				if (needsContext)
+					il.Emit(OpCodes.Ldarg_3);
+
 				il.Emit(OpCodes.Call, data.ReaderMethodInfo);
 
 				// write result object to out object
@@ -188,6 +197,9 @@ namespace NetSerializer
 			{
 				il.Emit(OpCodes.Ldarg_1);
 				il.Emit(OpCodes.Ldarg_2);
+
+				if (needsContext)
+					il.Emit(OpCodes.Ldarg_3);
 
 				// XXX tailcall causes slowdowns with large valuetypes
 				//il.Emit(OpCodes.Tailcall);

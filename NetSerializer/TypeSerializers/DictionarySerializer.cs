@@ -92,7 +92,7 @@ namespace NetSerializer
 			{
 				var p = mi.GetParameters();
 
-				if (p.Length != 3)
+				if (p.Length < 3)
 					continue;
 
 				if (p[1].ParameterType != typeof(Stream))
@@ -121,7 +121,7 @@ namespace NetSerializer
 			{
 				var p = mi.GetParameters();
 
-				if (p.Length != 3)
+				if (p.Length < 3)
 					continue;
 
 				if (p[1].ParameterType != typeof(Stream))
@@ -146,11 +146,15 @@ namespace NetSerializer
 			return null;
 		}
 
-		public static void WritePrimitive<TKey, TValue>(Serializer serializer, Stream stream, Dictionary<TKey, TValue> value)
+		public static void WritePrimitive<TKey, TValue>(
+			Serializer serializer,
+			Stream stream,
+			Dictionary<TKey, TValue> value,
+			SerializationContext ctx)
 		{
 			if (value == null)
 			{
-				serializer.Serialize(stream, null);
+				serializer.Serialize(stream, null, ctx);
 				return;
 			}
 			
@@ -160,12 +164,16 @@ namespace NetSerializer
 			foreach (var kvp in value)
 				kvpArray[i++] = kvp;
 
-			serializer.Serialize(stream, kvpArray);
+			serializer.SerializeDirect(stream, kvpArray, ctx);
 		}
 
-		public static void ReadPrimitive<TKey, TValue>(Serializer serializer, Stream stream, out Dictionary<TKey, TValue> value)
+		public static void ReadPrimitive<TKey, TValue>(
+			Serializer serializer,
+			Stream stream,
+			out Dictionary<TKey, TValue> value,
+			SerializationContext ctx)
 		{
-			var kvpArray = (KeyValuePair<TKey, TValue>[])serializer.Deserialize(stream);
+			serializer.DeserializeDirect(stream, out KeyValuePair<TKey, TValue>[] kvpArray, ctx);
 
 			if (kvpArray == null)
 			{
